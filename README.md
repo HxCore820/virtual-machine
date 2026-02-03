@@ -340,8 +340,7 @@ Dự án này được cấp phép theo **Giấy phép MIT** - xem tệp [LICENS
 
 ## 📞 Liên Hệ & Hỗ Trợ
 
-- 📧 **Issues**: [GitHub Issues](https://github.com/yourusername/rdp-github-actions/issues)
-- 💬 **Thảo luận**: [GitHub Discussions](https://github.com/yourusername/rdp-github-actions/discussions)
+- 📧 **Issues**: [GitHub Issues](https://github.com/HxCore820/virtual-machine/issues/1)
 - 🐛 **Báo cáo lỗi**: Sử dụng mẫu issue
 - 💡 **Yêu cầu tính năng**: Mở thảo luận
 
