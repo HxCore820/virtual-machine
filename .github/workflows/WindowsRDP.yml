@@ -1,4 +1,4 @@
-name: 🖥️ Windows RDP - Remote Desktop Service
+name: 🖥️ Windows RDP 
 
 on: 
   workflow_dispatch:
