@@ -381,7 +381,6 @@ Dự án này được cấp phép theo **Giấy phép MIT** - xem tệp [LICENS
 ## 🔄 Lịch Sử Thay Đổi
 
 ### Phiên bản 2.0.0 (Mới nhất)
-- ✅ Sửa cấu hình Ubuntu Desktop RDP
 - ✅ Thêm hỗ trợ đa ngôn ngữ (English/Tiếng Việt)
 - ✅ Cải thiện logging - cập nhật trạng thái một dòng
 - ✅ Đổi tên biến cho rõ ràng hơn (PUBLIC_IP)
