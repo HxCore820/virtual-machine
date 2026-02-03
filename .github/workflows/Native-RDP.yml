@@ -1,4 +1,4 @@
-name: 🚀 Native RDP - High Performance Desktop
+name: 🚀 RDP Native
 
 on: 
   workflow_dispatch:
