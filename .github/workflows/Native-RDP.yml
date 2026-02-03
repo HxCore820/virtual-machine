@@ -1,0 +1,298 @@
+name: 🚀 Native RDP - High Performance Desktop
+
+on: 
+  workflow_dispatch:
+    inputs:
+      os_version:
+        description: '📀 Select Operating System / Chọn Hệ Điều Hành'
+        required: true
+        default: 'Windows Server 2025 (Native - 4vCPU | 16GB RAM)'
+        type: choice
+        options: 
+          - "Windows Server 2025 (Native - 4vCPU | 16GB RAM)"
+          - "Ubuntu 24.04 Desktop (Native - 4vCPU | 16GB RAM)"
+      
+      language:
+        description: '🌐 Language / Ngôn ngữ'
+        required: true
+        default: 'English'
+        type: choice
+        options:
+          - "English"
+          - "Tiếng Việt"
+
+jobs:
+  # ==================== WINDOWS SERVER 2025 NATIVE ====================
+  windows-native:
+    if: github.event.inputs.os_version == 'Windows Server 2025 (Native - 4vCPU | 16GB RAM)'
+    runs-on: windows-latest
+    timeout-minutes: 360
+    
+    steps:
+      - name: 🔧 System Initialization / Khởi tạo hệ thống
+        run: |
+          $ErrorActionPreference = 'SilentlyContinue'
+          
+          # Create Administrator Account
+          net user Admin Window@123456 /add /expires:never /passwordchg:no
+          net localgroup Administrators Admin /add
+          net localgroup "Remote Desktop Users" Admin /add
+          
+          # Configure RDP Service
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+          netsh advfirewall firewall add rule name="RDP-3389" dir=in action=allow protocol=TCP localport=3389 profile=any
+          
+          # Start Kami Tunnel
+          Start-Process powershell -ArgumentList "-NoProfile -Command `
+            iwr https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-windows-amd64.tar.gz -OutFile kami-tunnel-windows-amd64.tar.gz; `
+            tar -xzf kami-tunnel-windows-amd64.tar.gz; `
+            .\kami-tunnel.exe 3389"
+
+      - name: 🌐 Connection Information / Thông tin kết nối
+        run: |
+          $LANG = "${{ github.event.inputs.language }}"
+          
+          if ($LANG -eq "Tiếng Việt") {
+            Write-Host "🔄 Đang thiết lập kết nối đến Windows Server 2025..." -ForegroundColor Cyan
+          } else {
+            Write-Host "🔄 Establishing connection to Windows Server 2025..." -ForegroundColor Cyan
+          }
+          
+          $publicIP = ""
+          while (-not $publicIP) {
+              if (Test-Path "kami_tunnel.txt") {
+                  $content = Get-Content "kami_tunnel.txt"
+                  if ($content -match '\.') { $publicIP = $content }
+              }
+              if (-not $publicIP) { Start-Sleep -Seconds 3 }
+          }
+          
+          Write-Host ""
+          if ($LANG -eq "Tiếng Việt") {
+            Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Green
+            Write-Host "║    ✅ WINDOWS SERVER 2025 - SẴN SÀNG KẾT NỐI            ║" -ForegroundColor Green
+            Write-Host "╠════════════════════════════════════════════════════════════╣" -ForegroundColor White
+            Write-Host "║ 🌐  IP Công khai : $publicIP" -ForegroundColor Yellow
+            Write-Host "║ 👤  Tài khoản    : Admin" -ForegroundColor White
+            Write-Host "║ 🔐  Mật khẩu     : Window@123456" -ForegroundColor White
+            Write-Host "║ 📍  Cổng RDP     : 3389" -ForegroundColor White
+            Write-Host "║ 💻  Tài nguyên   : 4 vCPU | 16GB RAM" -ForegroundColor Cyan
+            Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Green
+          } else {
+            Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Green
+            Write-Host "║    ✅ WINDOWS SERVER 2025 - READY FOR CONNECTION         ║" -ForegroundColor Green
+            Write-Host "╠════════════════════════════════════════════════════════════╣" -ForegroundColor White
+            Write-Host "║ 🌐  Public IP    : $publicIP" -ForegroundColor Yellow
+            Write-Host "║ 👤  Username     : Admin" -ForegroundColor White
+            Write-Host "║ 🔐  Password     : Window@123456" -ForegroundColor White
+            Write-Host "║ 📍  RDP Port     : 3389" -ForegroundColor White
+            Write-Host "║ 💻  Resources    : 4 vCPU | 16GB RAM" -ForegroundColor Cyan
+            Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Green
+          }
+          Write-Host ""
+          
+          # Save to environment
+          "PUBLIC_IP=$publicIP" | Out-File -Append -FilePath $env:GITHUB_ENV
+
+      - name: ⏰ Session Keepalive / Duy trì phiên
+        run: |
+          $LANG = "${{ github.event.inputs.language }}"
+          $endTime = (Get-Date).AddMinutes(340)
+          
+          while ((Get-Date) -lt $endTime) {
+              $left = $endTime - (Get-Date)
+              $hours = [math]::Floor($left.TotalHours)
+              $minutes = $left.Minutes
+              
+              if ($LANG -eq "Tiếng Việt") {
+                Write-Host "`r🟢 Windows Server 2025 Đang hoạt động | Còn lại: ${hours}h ${minutes}m | RDP: $env:PUBLIC_IP     " -NoNewline -ForegroundColor Green
+              } else {
+                Write-Host "`r🟢 Windows Server 2025 Active | Remaining: ${hours}h ${minutes}m | RDP: $env:PUBLIC_IP     " -NoNewline -ForegroundColor Green
+              }
+              
+              Start-Sleep -Seconds 30
+          }
+          Write-Host ""
+
+  # ==================== UBUNTU DESKTOP NATIVE ====================
+  ubuntu-native:
+    if: github.event.inputs.os_version == 'Ubuntu 24.04 Desktop (Native - 4vCPU | 16GB RAM)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    
+    steps:
+      - name: 🔧 System Initialization / Khởi tạo hệ thống
+        run: |
+          # Update system
+          sudo apt-get update > /dev/null 2>&1
+          
+          # Install XFCE Desktop Environment
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            xfce4 xfce4-goodies xorg dbus-x11 x11-xserver-utils > /dev/null 2>&1
+          
+          # Install XRDP Server
+          sudo apt-get install -y xrdp > /dev/null 2>&1
+          
+          # Configure XRDP to use XFCE
+          echo "xfce4-session" | sudo tee /etc/xrdp/startwm.sh > /dev/null
+          sudo chmod +x /etc/xrdp/startwm.sh
+          
+          # Enable and start XRDP
+          sudo systemctl enable xrdp > /dev/null 2>&1
+          sudo systemctl start xrdp > /dev/null 2>&1
+          
+          # Create Administrator Account
+          sudo useradd -m -s /bin/bash Admin
+          echo "Admin:Ubuntu@123456" | sudo chpasswd
+          sudo usermod -aG sudo Admin
+          
+          # Configure XFCE for new user
+          sudo mkdir -p /home/Admin
+          echo "xfce4-session" | sudo tee /home/Admin/.xsession > /dev/null
+          sudo chown -R Admin:Admin /home/Admin
+          
+          # Download Kami Tunnel
+          wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
+          tar -xzf kami-tunnel-linux-amd64.tar.gz > /dev/null 2>&1
+          chmod +x kami-tunnel
+          
+          # Start Kami Tunnel for Port 3389
+          nohup ./kami-tunnel 3389 > kami_tunnel.log 2>&1 &
+          TUNNEL_PID=$!
+          echo "Tunnel PID: $TUNNEL_PID"
+
+      - name: 🌐 Connection Information / Thông tin kết nối
+        run: |
+          LANG="${{ github.event.inputs.language }}"
+          
+          if [ "$LANG" = "Tiếng Việt" ]; then
+            echo "🔄 Đang thiết lập kết nối đến Ubuntu 24.04 Desktop..."
+          else
+            echo "🔄 Establishing connection to Ubuntu 24.04 Desktop..."
+          fi
+          echo ""
+          
+          # Wait for tunnel file
+          if [ "$LANG" = "Tiếng Việt" ]; then
+            echo "⏳ Đang chờ kết nối tunnel..."
+          else
+            echo "⏳ Waiting for tunnel connection..."
+          fi
+          
+          RETRY=0
+          while [ ! -f kami_tunnel.txt ] && [ $RETRY -lt 60 ]; do
+            sleep 2
+            RETRY=$((RETRY + 1))
+          done
+          
+          if [ ! -f kami_tunnel.txt ]; then
+            if [ "$LANG" = "Tiếng Việt" ]; then
+              echo "❌ LỖI: Không tạo được file kami_tunnel.txt"
+            else
+              echo "❌ ERROR: kami_tunnel.txt not created"
+            fi
+            cat kami_tunnel.log 2>/dev/null
+            exit 1
+          fi
+          
+          # Get Public IP
+          PUBLIC_IP=""
+          RETRY=0
+          while [ -z "$PUBLIC_IP" ] && [ $RETRY -lt 60 ]; do
+            IP_CONTENT=$(cat kami_tunnel.txt 2>/dev/null | head -1)
+            if [[ "$IP_CONTENT" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+$ ]]; then
+              PUBLIC_IP="$IP_CONTENT"
+              if [ "$LANG" = "Tiếng Việt" ]; then
+                echo "✅ Đã lấy IP công khai: $PUBLIC_IP"
+              else
+                echo "✅ Public IP captured: $PUBLIC_IP"
+              fi
+              break
+            fi
+            sleep 2
+            RETRY=$((RETRY + 1))
+          done
+          
+          if [ -z "$PUBLIC_IP" ]; then
+            if [ "$LANG" = "Tiếng Việt" ]; then
+              echo "❌ LỖI: Không thể lấy IP công khai"
+            else
+              echo "❌ ERROR: Could not retrieve Public IP"
+            fi
+            cat kami_tunnel.txt 2>/dev/null
+            exit 1
+          fi
+          
+          # Display Connection Information
+          echo ""
+          if [ "$LANG" = "Tiếng Việt" ]; then
+            echo "╔═══════════════════════════════════════════════════════════════════════╗"
+            echo "║         ✅ UBUNTU 24.04 DESKTOP - SẴN SÀNG KẾT NỐI                   ║"
+            echo "╠═══════════════════════════════════════════════════════════════════════╣"
+            echo "║                                                                       ║"
+            echo "║  🖥️  KẾT NỐI REMOTE DESKTOP (RDP)                                     ║"
+            echo "║  ─────────────────────────────────────────────────────────────────   ║"
+            echo "║  🌐  IP Công khai   : $PUBLIC_IP"
+            echo "║  👤  Tài khoản      : Admin                                           ║"
+            echo "║  🔐  Mật khẩu       : Ubuntu@123456                                   ║"
+            echo "║  📍  Cổng RDP       : 3389                                            ║"
+            echo "║                                                                       ║"
+            echo "║  🖥️  MÔI TRƯỜNG DESKTOP                                               ║"
+            echo "║  ─────────────────────────────────────────────────────────────────   ║"
+            echo "║  🎨  Desktop        : XFCE4 (Nhẹ & Nhanh)                             ║"
+            echo "║  🔧  RDP Server     : XRDP                                            ║"
+            echo "║                                                                       ║"
+            echo "║  💻  TÀI NGUYÊN HỆ THỐNG                                              ║"
+            echo "║  ─────────────────────────────────────────────────────────────────   ║"
+            echo "║  ⚡  CPU            : 4 vCPU                                          ║"
+            echo "║  🧠  RAM            : 16GB                                            ║"
+            echo "║                                                                       ║"
+            echo "╚═══════════════════════════════════════════════════════════════════════╝"
+          else
+            echo "╔═══════════════════════════════════════════════════════════════════════╗"
+            echo "║         ✅ UBUNTU 24.04 DESKTOP - READY FOR CONNECTION               ║"
+            echo "╠═══════════════════════════════════════════════════════════════════════╣"
+            echo "║                                                                       ║"
+            echo "║  🖥️  REMOTE DESKTOP CONNECTION (RDP)                                  ║"
+            echo "║  ─────────────────────────────────────────────────────────────────   ║"
+            echo "║  🌐  Public IP      : $PUBLIC_IP"
+            echo "║  👤  Username       : Admin                                           ║"
+            echo "║  🔐  Password       : Ubuntu@123456                                   ║"
+            echo "║  📍  RDP Port       : 3389                                            ║"
+            echo "║                                                                       ║"
+            echo "║  🖥️  DESKTOP ENVIRONMENT                                              ║"
+            echo "║  ─────────────────────────────────────────────────────────────────   ║"
+            echo "║  🎨  Desktop        : XFCE4 (Lightweight & Fast)                     ║"
+            echo "║  🔧  RDP Server     : XRDP                                            ║"
+            echo "║                                                                       ║"
+            echo "║  💻  SYSTEM RESOURCES                                                 ║"
+            echo "║  ─────────────────────────────────────────────────────────────────   ║"
+            echo "║  ⚡  CPU            : 4 vCPU                                          ║"
+            echo "║  🧠  RAM            : 16GB                                            ║"
+            echo "║                                                                       ║"
+            echo "╚═══════════════════════════════════════════════════════════════════════╝"
+          fi
+          echo ""
+          
+          echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
+
+      - name: ⏰ Session Keepalive / Duy trì phiên
+        run: |
+          LANG="${{ github.event.inputs.language }}"
+          END_TIME=$(($(date +%s) + 21600))
+          
+          while [ $(date +%s) -lt $END_TIME ]; do
+            REMAINING=$(( ($END_TIME - $(date +%s)) / 60 ))
+            HOURS=$(($REMAINING / 60))
+            MINUTES=$(($REMAINING % 60))
+            
+            if [ "$LANG" = "Tiếng Việt" ]; then
+              echo -ne "\r🟢 Ubuntu 24.04 Desktop Đang hoạt động | Còn lại: ${HOURS}h ${MINUTES}m | RDP: $PUBLIC_IP | Desktop: XFCE4     "
+            else
+              echo -ne "\r🟢 Ubuntu 24.04 Desktop Active | Remaining: ${HOURS}h ${MINUTES}m | RDP: $PUBLIC_IP | Desktop: XFCE4     "
+            fi
+            
+            sleep 30
+          done
+          echo ""
