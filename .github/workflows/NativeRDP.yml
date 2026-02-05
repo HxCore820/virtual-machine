@@ -12,6 +12,33 @@ on:
           - "Windows Server 2025 (Native - 4vCPU | 16GB RAM)"
           - "Ubuntu 24.04 Desktop (Native - 4vCPU | 16GB RAM)"
       
+      num_machines:
+        description: '🖥️ Number of Machines / Số lượng máy (1-20)'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+          - '11'
+          - '12'
+          - '13'
+          - '14'
+          - '15'
+          - '16'
+          - '17'
+          - '18'
+          - '19'
+          - '20'
+      
       language:
         description: '🌐 Language / Ngôn ngữ'
         required: true
@@ -27,9 +54,27 @@ jobs:
     if: github.event.inputs.os_version == 'Windows Server 2025 (Native - 4vCPU | 16GB RAM)'
     runs-on: windows-latest
     timeout-minutes: 360
+    strategy:
+      matrix:
+        instance: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+      fail-fast: false
+      max-parallel: 20
     
     steps:
+      - name: 🔍 Check if should run / Kiểm tra nên chạy
+        id: check
+        run: |
+          $numMachines = [int]"${{ github.event.inputs.num_machines }}"
+          $instance = [int]"${{ matrix.instance }}"
+          
+          if ($instance -le $numMachines) {
+            echo "should_run=true" >> $env:GITHUB_OUTPUT
+          } else {
+            echo "should_run=false" >> $env:GITHUB_OUTPUT
+          }
+
       - name: 🔧 System Initialization / Khởi tạo hệ thống
+        if: steps.check.outputs.should_run == 'true'
         run: |
           $ErrorActionPreference = 'SilentlyContinue'
           
@@ -50,13 +95,15 @@ jobs:
             .\kami-tunnel.exe 3389"
 
       - name: 🌐 Connection Information / Thông tin kết nối
+        if: steps.check.outputs.should_run == 'true'
         run: |
           $LANG = "${{ github.event.inputs.language }}"
+          $INSTANCE = "${{ matrix.instance }}"
           
           if ($LANG -eq "Tiếng Việt") {
-            Write-Host "🔄 Đang thiết lập kết nối đến Windows Server 2025..." -ForegroundColor Cyan
+            Write-Host "🔄 Đang thiết lập kết nối đến Windows Server 2025 #$INSTANCE..." -ForegroundColor Cyan
           } else {
-            Write-Host "🔄 Establishing connection to Windows Server 2025..." -ForegroundColor Cyan
+            Write-Host "🔄 Establishing connection to Windows Server 2025 #$INSTANCE..." -ForegroundColor Cyan
           }
           
           $publicIP = ""
@@ -71,8 +118,9 @@ jobs:
           Write-Host ""
           if ($LANG -eq "Tiếng Việt") {
             Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-            Write-Host "║    ✅ WINDOWS SERVER 2025 - SẴN SÀNG KẾT NỐI            ║" -ForegroundColor Green
+            Write-Host "║    ✅ WINDOWS SERVER 2025 #$INSTANCE - SẴN SÀNG KẾT NỐI     ║" -ForegroundColor Green
             Write-Host "╠════════════════════════════════════════════════════════════╣" -ForegroundColor White
+            Write-Host "║ 🔢  Máy số        : $INSTANCE" -ForegroundColor Magenta
             Write-Host "║ 🌐  IP Công khai : $publicIP" -ForegroundColor Yellow
             Write-Host "║ 👤  Tài khoản    : Admin" -ForegroundColor White
             Write-Host "║ 🔐  Mật khẩu     : Window@123456" -ForegroundColor White
@@ -81,8 +129,9 @@ jobs:
             Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Green
           } else {
             Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-            Write-Host "║    ✅ WINDOWS SERVER 2025 - READY FOR CONNECTION         ║" -ForegroundColor Green
+            Write-Host "║    ✅ WINDOWS SERVER 2025 #$INSTANCE - READY              ║" -ForegroundColor Green
             Write-Host "╠════════════════════════════════════════════════════════════╣" -ForegroundColor White
+            Write-Host "║ 🔢  Machine No.  : $INSTANCE" -ForegroundColor Magenta
             Write-Host "║ 🌐  Public IP    : $publicIP" -ForegroundColor Yellow
             Write-Host "║ 👤  Username     : Admin" -ForegroundColor White
             Write-Host "║ 🔐  Password     : Window@123456" -ForegroundColor White
@@ -96,8 +145,10 @@ jobs:
           "PUBLIC_IP=$publicIP" | Out-File -Append -FilePath $env:GITHUB_ENV
 
       - name: ⏰ Session Keepalive / Duy trì phiên
+        if: steps.check.outputs.should_run == 'true'
         run: |
           $LANG = "${{ github.event.inputs.language }}"
+          $INSTANCE = "${{ matrix.instance }}"
           $endTime = (Get-Date).AddMinutes(340)
           
           while ((Get-Date) -lt $endTime) {
@@ -106,9 +157,9 @@ jobs:
               $minutes = $left.Minutes
               
               if ($LANG -eq "Tiếng Việt") {
-                Write-Host "`r🟢 Windows Server 2025 Đang hoạt động | Còn lại: ${hours}h ${minutes}m | RDP: $env:PUBLIC_IP     " -NoNewline -ForegroundColor Green
+                Write-Host "`r🟢 Windows #$INSTANCE Đang hoạt động | Còn lại: ${hours}h ${minutes}m | RDP: $env:PUBLIC_IP     " -NoNewline -ForegroundColor Green
               } else {
-                Write-Host "`r🟢 Windows Server 2025 Active | Remaining: ${hours}h ${minutes}m | RDP: $env:PUBLIC_IP     " -NoNewline -ForegroundColor Green
+                Write-Host "`r🟢 Windows #$INSTANCE Active | Remaining: ${hours}h ${minutes}m | RDP: $env:PUBLIC_IP     " -NoNewline -ForegroundColor Green
               }
               
               Start-Sleep -Seconds 30
@@ -120,9 +171,27 @@ jobs:
     if: github.event.inputs.os_version == 'Ubuntu 24.04 Desktop (Native - 4vCPU | 16GB RAM)'
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    strategy:
+      matrix:
+        instance: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+      fail-fast: false
+      max-parallel: 20
     
     steps:
+      - name: 🔍 Check if should run / Kiểm tra nên chạy
+        id: check
+        run: |
+          num_machines=${{ github.event.inputs.num_machines }}
+          instance=${{ matrix.instance }}
+          
+          if [ $instance -le $num_machines ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: 🔧 System Initialization / Khởi tạo hệ thống
+        if: steps.check.outputs.should_run == 'true'
         run: |
           # Update system
           sudo apt-get update > /dev/null 2>&1
@@ -163,13 +232,15 @@ jobs:
           echo "Tunnel PID: $TUNNEL_PID"
 
       - name: 🌐 Connection Information / Thông tin kết nối
+        if: steps.check.outputs.should_run == 'true'
         run: |
           LANG="${{ github.event.inputs.language }}"
+          INSTANCE="${{ matrix.instance }}"
           
           if [ "$LANG" = "Tiếng Việt" ]; then
-            echo "🔄 Đang thiết lập kết nối đến Ubuntu 24.04 Desktop..."
+            echo "🔄 Đang thiết lập kết nối đến Ubuntu 24.04 Desktop #$INSTANCE..."
           else
-            echo "🔄 Establishing connection to Ubuntu 24.04 Desktop..."
+            echo "🔄 Establishing connection to Ubuntu 24.04 Desktop #$INSTANCE..."
           fi
           echo ""
           
@@ -228,11 +299,12 @@ jobs:
           echo ""
           if [ "$LANG" = "Tiếng Việt" ]; then
             echo "╔═══════════════════════════════════════════════════════════════════════╗"
-            echo "║         ✅ UBUNTU 24.04 DESKTOP - SẴN SÀNG KẾT NỐI                   ║"
+            echo "║         ✅ UBUNTU 24.04 DESKTOP #$INSTANCE - SẴN SÀNG KẾT NỐI           ║"
             echo "╠═══════════════════════════════════════════════════════════════════════╣"
             echo "║                                                                       ║"
             echo "║  🖥️  KẾT NỐI REMOTE DESKTOP (RDP)                                     ║"
             echo "║  ─────────────────────────────────────────────────────────────────   ║"
+            echo "║  🔢  Máy số         : $INSTANCE"
             echo "║  🌐  IP Công khai   : $PUBLIC_IP"
             echo "║  👤  Tài khoản      : Admin                                           ║"
             echo "║  🔐  Mật khẩu       : Ubuntu@123456                                   ║"
@@ -251,11 +323,12 @@ jobs:
             echo "╚═══════════════════════════════════════════════════════════════════════╝"
           else
             echo "╔═══════════════════════════════════════════════════════════════════════╗"
-            echo "║         ✅ UBUNTU 24.04 DESKTOP - READY FOR CONNECTION               ║"
+            echo "║         ✅ UBUNTU 24.04 DESKTOP #$INSTANCE - READY FOR CONNECTION     ║"
             echo "╠═══════════════════════════════════════════════════════════════════════╣"
             echo "║                                                                       ║"
             echo "║  🖥️  REMOTE DESKTOP CONNECTION (RDP)                                  ║"
             echo "║  ─────────────────────────────────────────────────────────────────   ║"
+            echo "║  🔢  Machine No.    : $INSTANCE"
             echo "║  🌐  Public IP      : $PUBLIC_IP"
             echo "║  👤  Username       : Admin                                           ║"
             echo "║  🔐  Password       : Ubuntu@123456                                   ║"
@@ -278,8 +351,10 @@ jobs:
           echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
 
       - name: ⏰ Session Keepalive / Duy trì phiên
+        if: steps.check.outputs.should_run == 'true'
         run: |
           LANG="${{ github.event.inputs.language }}"
+          INSTANCE="${{ matrix.instance }}"
           END_TIME=$(($(date +%s) + 21600))
           
           while [ $(date +%s) -lt $END_TIME ]; do
@@ -288,9 +363,9 @@ jobs:
             MINUTES=$(($REMAINING % 60))
             
             if [ "$LANG" = "Tiếng Việt" ]; then
-              echo -ne "\r🟢 Ubuntu 24.04 Desktop Đang hoạt động | Còn lại: ${HOURS}h ${MINUTES}m | RDP: $PUBLIC_IP | Desktop: XFCE4     "
+              echo -ne "\r🟢 Ubuntu #$INSTANCE Đang hoạt động | Còn lại: ${HOURS}h ${MINUTES}m | RDP: $PUBLIC_IP | Desktop: XFCE4     "
             else
-              echo -ne "\r🟢 Ubuntu 24.04 Desktop Active | Remaining: ${HOURS}h ${MINUTES}m | RDP: $PUBLIC_IP | Desktop: XFCE4     "
+              echo -ne "\r🟢 Ubuntu #$INSTANCE Active | Remaining: ${HOURS}h ${MINUTES}m | RDP: $PUBLIC_IP | Desktop: XFCE4     "
             fi
             
             sleep 30
