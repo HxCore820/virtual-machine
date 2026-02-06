@@ -49,32 +49,38 @@ on:
           - "Tiếng Việt"
 
 jobs:
+  # ==================== PREPARE MATRIX ====================
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          NUM="${{ github.event.inputs.num_machines }}"
+          MATRIX="["
+          for i in $(seq 1 $NUM); do
+            if [ $i -gt 1 ]; then MATRIX="${MATRIX},"; fi
+            MATRIX="${MATRIX}${i}"
+          done
+          MATRIX="${MATRIX}]"
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
   # ==================== WINDOWS SERVER 2025 NATIVE ====================
   windows-native:
+    needs: prepare
     if: github.event.inputs.os_version == 'Windows Server 2025 (Native - 4vCPU | 16GB RAM)'
     runs-on: windows-latest
     timeout-minutes: 360
     strategy:
       matrix:
-        instance: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        instance: ${{ fromJson(needs.prepare.outputs.matrix) }}
       fail-fast: false
       max-parallel: 20
     
     steps:
-      - name: 🔍 Check if should run / Kiểm tra nên chạy
-        id: check
-        run: |
-          $numMachines = [int]"${{ github.event.inputs.num_machines }}"
-          $instance = [int]"${{ matrix.instance }}"
-          
-          if ($instance -le $numMachines) {
-            echo "should_run=true" >> $env:GITHUB_OUTPUT
-          } else {
-            echo "should_run=false" >> $env:GITHUB_OUTPUT
-          }
-
       - name: 🔧 System Initialization / Khởi tạo hệ thống
-        if: steps.check.outputs.should_run == 'true'
         run: |
           $ErrorActionPreference = 'SilentlyContinue'
           
@@ -95,7 +101,6 @@ jobs:
             .\kami-tunnel.exe 3389"
 
       - name: 🌐 Connection Information / Thông tin kết nối
-        if: steps.check.outputs.should_run == 'true'
         run: |
           $LANG = "${{ github.event.inputs.language }}"
           $INSTANCE = "${{ matrix.instance }}"
@@ -145,7 +150,6 @@ jobs:
           "PUBLIC_IP=$publicIP" | Out-File -Append -FilePath $env:GITHUB_ENV
 
       - name: ⏰ Session Keepalive / Duy trì phiên
-        if: steps.check.outputs.should_run == 'true'
         run: |
           $LANG = "${{ github.event.inputs.language }}"
           $INSTANCE = "${{ matrix.instance }}"
@@ -168,37 +172,24 @@ jobs:
 
   # ==================== UBUNTU DESKTOP NATIVE ====================
   ubuntu-native:
+    needs: prepare
     if: github.event.inputs.os_version == 'Ubuntu 24.04 Desktop (Native - 4vCPU | 16GB RAM)'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
       matrix:
-        instance: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        instance: ${{ fromJson(needs.prepare.outputs.matrix) }}
       fail-fast: false
       max-parallel: 20
     
     steps:
-      - name: 🔍 Check if should run / Kiểm tra nên chạy
-        id: check
-        run: |
-          num_machines=${{ github.event.inputs.num_machines }}
-          instance=${{ matrix.instance }}
-          
-          if [ $instance -le $num_machines ]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_run=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: 🔧 System Initialization / Khởi tạo hệ thống
-        if: steps.check.outputs.should_run == 'true'
         run: |
-          # Update system
-          sudo apt-get update > /dev/null 2>&1
+          # Update System
+          sudo apt-get update -qq > /dev/null 2>&1
           
-          # Install XFCE Desktop Environment
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            xfce4 xfce4-goodies xorg dbus-x11 x11-xserver-utils > /dev/null 2>&1
+          # Install XFCE4 Desktop Environment
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 xfce4-goodies > /dev/null 2>&1
           
           # Install XRDP Server
           sudo apt-get install -y xrdp > /dev/null 2>&1
@@ -232,7 +223,6 @@ jobs:
           echo "Tunnel PID: $TUNNEL_PID"
 
       - name: 🌐 Connection Information / Thông tin kết nối
-        if: steps.check.outputs.should_run == 'true'
         run: |
           LANG="${{ github.event.inputs.language }}"
           INSTANCE="${{ matrix.instance }}"
@@ -351,7 +341,6 @@ jobs:
           echo "PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
 
       - name: ⏰ Session Keepalive / Duy trì phiên
-        if: steps.check.outputs.should_run == 'true'
         run: |
           LANG="${{ github.event.inputs.language }}"
           INSTANCE="${{ matrix.instance }}"
