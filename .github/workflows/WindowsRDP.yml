@@ -16,6 +16,23 @@ on:
           - "Windows 11 Professional (Docker - 4vCPU | 8GB RAM)"
           - "Windows 10 Professional (Docker - 4vCPU | 8GB RAM)"
       
+      num_machines:
+        description: '🖥️ Number of Machines / Số lượng máy (1-10)'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+      
       language:
         description: '🌐 Language / Ngôn ngữ'
         required: true
@@ -26,9 +43,34 @@ on:
           - "Tiếng Việt"
 
 jobs:
+  # ==================== PREPARE MATRIX ====================
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          NUM="${{ github.event.inputs.num_machines }}"
+          MATRIX="["
+          for i in $(seq 1 $NUM); do
+            if [ $i -gt 1 ]; then MATRIX="${MATRIX},"; fi
+            MATRIX="${MATRIX}${i}"
+          done
+          MATRIX="${MATRIX}]"
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+  # ==================== WINDOWS RDP DOCKER ====================
   windows-rdp-docker:
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    strategy:
+      matrix:
+        instance: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      fail-fast: false
+      max-parallel: 10
     
     steps:
       - name: 🔧 System Initialization / Khởi tạo hệ thống
@@ -36,6 +78,7 @@ jobs:
           sudo apt-get update > /dev/null 2>&1
           
           SELECTED_OS="${{ github.event.inputs.os_version }}"
+          INSTANCE="${{ matrix.instance }}"
           
           # Determine Windows Version
           if [[ "$SELECTED_OS" == *"2025"* ]]; then
@@ -58,13 +101,17 @@ jobs:
             OS_NAME="Windows 10 Professional"
           fi
           
+          # Calculate unique ports for each instance
+          RDP_PORT=$((3389 + INSTANCE - 1))
+          WEB_PORT=$((8006 + INSTANCE - 1))
+          
           # Create Docker Compose Configuration
           cat <<EOF > docker-compose.yml
           version: "3.9"
           services:
             windows:
               image: dockurr/windows
-              container_name: windows_rdp
+              container_name: windows_rdp_${INSTANCE}
               privileged: true
               environment:
                 VERSION: "$VERSION"
@@ -75,47 +122,50 @@ jobs:
                 DISK_SIZE: "60G"
               devices: [ "/dev/kvm" ]
               ports:
-                - "3389:3389"
-                - "8006:8006"
+                - "${RDP_PORT}:3389"
+                - "${WEB_PORT}:8006"
           EOF
           
           docker compose up -d > /dev/null 2>&1
           
           echo "OS_NAME=$OS_NAME" >> $GITHUB_ENV
+          echo "RDP_PORT=$RDP_PORT" >> $GITHUB_ENV
+          echo "WEB_PORT=$WEB_PORT" >> $GITHUB_ENV
           
           # Download Kami Tunnel
           wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
           tar -xzf kami-tunnel-linux-amd64.tar.gz > /dev/null 2>&1
           chmod +x kami-tunnel
           
-          # Start Kami Tunnel for RDP (Port 3389)
-          nohup ./kami-tunnel 3389 > kami_tunnel_rdp.log 2>&1 &
+          # Start Kami Tunnel for RDP
+          nohup ./kami-tunnel $RDP_PORT > kami_tunnel_rdp.log 2>&1 &
           RDP_PID=$!
           echo "RDP Tunnel PID: $RDP_PID"
           
           sleep 5
           
-          # Start Kami Tunnel for Web Viewer (Port 8006)
-          nohup ./kami-tunnel 8006 > kami_tunnel_web.log 2>&1 &
+          # Start Kami Tunnel for Web Viewer
+          nohup ./kami-tunnel $WEB_PORT > kami_tunnel_web.log 2>&1 &
           WEB_PID=$!
           echo "Web Tunnel PID: $WEB_PID"
 
       - name: 🌐 Connection Information / Thông tin kết nối
         run: |
           LANG="${{ github.event.inputs.language }}"
+          INSTANCE="${{ matrix.instance }}"
           
           if [ "$LANG" = "Tiếng Việt" ]; then
-            echo "🔄 Đang thiết lập kết nối đến $OS_NAME..."
+            echo "🔄 Đang thiết lập kết nối đến $OS_NAME #$INSTANCE..."
           else
-            echo "🔄 Establishing connection to $OS_NAME..."
+            echo "🔄 Establishing connection to $OS_NAME #$INSTANCE..."
           fi
           echo ""
           
-          # Get RDP IP (Port 3389)
+          # Get RDP IP
           if [ "$LANG" = "Tiếng Việt" ]; then
-            echo "⏳ Đang chờ RDP tunnel (Cổng 3389)..."
+            echo "⏳ Đang chờ RDP tunnel (Cổng $RDP_PORT)..."
           else
-            echo "⏳ Waiting for RDP tunnel (Port 3389)..."
+            echo "⏳ Waiting for RDP tunnel (Port $RDP_PORT)..."
           fi
           
           RDP_PUBLIC_IP=""
@@ -147,11 +197,11 @@ jobs:
             exit 1
           fi
           
-          # Get Web Viewer IP (Port 8006)
+          # Get Web Viewer IP
           if [ "$LANG" = "Tiếng Việt" ]; then
-            echo "⏳ Đang chờ Web tunnel (Cổng 8006)..."
+            echo "⏳ Đang chờ Web tunnel (Cổng $WEB_PORT)..."
           else
-            echo "⏳ Waiting for Web tunnel (Port 8006)..."
+            echo "⏳ Waiting for Web tunnel (Port $WEB_PORT)..."
           fi
           
           WEB_PUBLIC_IP=""
@@ -187,20 +237,21 @@ jobs:
           echo ""
           if [ "$LANG" = "Tiếng Việt" ]; then
             echo "╔═══════════════════════════════════════════════════════════════════════╗"
-            echo "║              ✅ $OS_NAME - SẴN SÀNG KẾT NỐI"
+            echo "║              ✅ $OS_NAME #$INSTANCE - SẴN SÀNG KẾT NỐI"
             echo "╠═══════════════════════════════════════════════════════════════════════╣"
             echo "║                                                                       ║"
             echo "║  🖥️  KẾT NỐI REMOTE DESKTOP (RDP)                                     ║"
             echo "║  ─────────────────────────────────────────────────────────────────   ║"
+            echo "║  🔢  Máy số         : $INSTANCE"
             echo "║  🌐  IP Công khai   : $RDP_PUBLIC_IP"
             echo "║  👤  Tài khoản      : Admin                                           ║"
             echo "║  🔐  Mật khẩu       : Window@123456                                   ║"
-            echo "║  📍  Cổng RDP       : 3389                                            ║"
+            echo "║  📍  Cổng RDP       : $RDP_PORT                                       ║"
             echo "║                                                                       ║"
             echo "║  🌐  TRÌNH XEM WEB (Theo dõi cài đặt)                                 ║"
             echo "║  ─────────────────────────────────────────────────────────────────   ║"
             echo "║  🔗  Địa chỉ Web    : http://$WEB_PUBLIC_IP"
-            echo "║  📍  Cổng           : 8006                                            ║"
+            echo "║  📍  Cổng           : $WEB_PORT                                       ║"
             echo "║                                                                       ║"
             echo "║  💻  TÀI NGUYÊN HỆ THỐNG                                              ║"
             echo "║  ─────────────────────────────────────────────────────────────────   ║"
@@ -213,20 +264,21 @@ jobs:
             echo "💡 MẸO: Dùng Web Viewer để theo dõi tiến trình cài đặt Windows!"
           else
             echo "╔═══════════════════════════════════════════════════════════════════════╗"
-            echo "║              ✅ $OS_NAME - READY FOR CONNECTION"
+            echo "║              ✅ $OS_NAME #$INSTANCE - READY FOR CONNECTION"
             echo "╠═══════════════════════════════════════════════════════════════════════╣"
             echo "║                                                                       ║"
             echo "║  🖥️  REMOTE DESKTOP CONNECTION (RDP)                                  ║"
             echo "║  ─────────────────────────────────────────────────────────────────   ║"
+            echo "║  🔢  Machine No.    : $INSTANCE"
             echo "║  🌐  Public IP      : $RDP_PUBLIC_IP"
             echo "║  👤  Username       : Admin                                           ║"
             echo "║  🔐  Password       : Window@123456                                   ║"
-            echo "║  📍  RDP Port       : 3389                                            ║"
+            echo "║  📍  RDP Port       : $RDP_PORT                                       ║"
             echo "║                                                                       ║"
             echo "║  🌐  WEB VIEWER (Monitor Installation)                                ║"
             echo "║  ─────────────────────────────────────────────────────────────────   ║"
             echo "║  🔗  Web Address    : http://$WEB_PUBLIC_IP"
-            echo "║  📍  Port           : 8006                                            ║"
+            echo "║  📍  Port           : $WEB_PORT                                       ║"
             echo "║                                                                       ║"
             echo "║  💻  SYSTEM RESOURCES                                                 ║"
             echo "║  ─────────────────────────────────────────────────────────────────   ║"
@@ -246,6 +298,7 @@ jobs:
       - name: ⏰ Session Keepalive / Duy trì phiên
         run: |
           LANG="${{ github.event.inputs.language }}"
+          INSTANCE="${{ matrix.instance }}"
           END_TIME=$(($(date +%s) + 21600))
           
           while [ $(date +%s) -lt $END_TIME ]; do
@@ -254,9 +307,9 @@ jobs:
             MINUTES=$(($REMAINING % 60))
             
             if [ "$LANG" = "Tiếng Việt" ]; then
-              echo -ne "\r🟢 $OS_NAME Đang hoạt động | Còn lại: ${HOURS}h ${MINUTES}m | RDP: $RDP_PUBLIC_IP | Web: http://$WEB_PUBLIC_IP     "
+              echo -ne "\r🟢 $OS_NAME #$INSTANCE Đang hoạt động | Còn lại: ${HOURS}h ${MINUTES}m | RDP: $RDP_PUBLIC_IP | Web: http://$WEB_PUBLIC_IP     "
             else
-              echo -ne "\r🟢 $OS_NAME Active | Remaining: ${HOURS}h ${MINUTES}m | RDP: $RDP_PUBLIC_IP | Web: http://$WEB_PUBLIC_IP     "
+              echo -ne "\r🟢 $OS_NAME #$INSTANCE Active | Remaining: ${HOURS}h ${MINUTES}m | RDP: $RDP_PUBLIC_IP | Web: http://$WEB_PUBLIC_IP     "
             fi
             
             sleep 30
